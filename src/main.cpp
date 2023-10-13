@@ -4,9 +4,28 @@
 #include "../.pio/libdeps/esp32s3box/ESP32Servo/src/ESP32Servo.h"
 #include "../.pio/libdeps/esp32s3box/NeoPixelBus/src/NeoPixelBus.h"
 
+#define I2C_CLOCK_PIN 0
+#define I2C_DATA_PIN 0
+
+#define TWO_AXIS_TOP_RIGHT_PHOTORESISTOR 1
+#define TWO_AXIS_TOP_LEFT_PHOTORESISTOR 1
+#define TWO_AXIS_BOTTOM_RIGHT_PHOTORESISTOR 1
+#define TWO_AXIS_BOTTOM_LEFT_PHOTORESISTOR 1
+
+#define ONE_AXIS_TOP_PHOTORESISTOR 1
+#define ONE_AXIS_BOTTOM_PHOTORESISTOR 1
+#define ONE_AXIS_LEFT_PHOTORESISTOR 1
+#define ONE_AXIS_RIGHT_PHOTORESISTOR 1
+
+#define TWO_AXIS_LOWER_SERVO 1
+#define TWO_AXIS_TOP_SERVO 1
+
+#define ONE_AXIS_LOWER_SERVO 1
+#define ONE_AXIS_TOP_SERVO 1
+
 Adafruit_ADS1115 ads1;
 Adafruit_ADS1115 ads2;
-TwoWire I2C = TwoWire(0);
+TwoWire ADC_I2C = TwoWire(0);
 
 Servo multiBottom;
 Servo multiTop;
@@ -16,6 +35,54 @@ Servo singleTop;
 
 NeoPixelBus<NeoBgrFeature, NeoEsp32Rmt0800KbpsMethod> statLED(1, 38);
 
+void stepServos() {
+    uint16_t topLeftVal = analogRead(TWO_AXIS_TOP_LEFT_PHOTORESISTOR);
+    uint16_t topRightVal = analogRead(TWO_AXIS_TOP_RIGHT_PHOTORESISTOR);
+    uint16_t bottomLeftVal = analogRead(TWO_AXIS_BOTTOM_LEFT_PHOTORESISTOR);
+    uint16_t bottomRightVal = analogRead(TWO_AXIS_BOTTOM_RIGHT_PHOTORESISTOR);
+    int multiTopAngle = multiTop.read();
+    int multiBottomAngle = multiBottom.read();
+
+
+    uint16_t singleLeftVal = analogRead(ONE_AXIS_LEFT_PHOTORESISTOR);
+    uint16_t singleRightVal = analogRead(ONE_AXIS_RIGHT_PHOTORESISTOR);
+    uint16_t singleTopVal = analogRead(ONE_AXIS_TOP_PHOTORESISTOR);
+    uint16_t singleBottomVal = analogRead(ONE_AXIS_BOTTOM_PHOTORESISTOR);
+
+    int singleTopAngle = singleTop.read();
+    int singleBottomAngle = singleBottom.read();
+
+    if (topLeftVal > topRightVal || bottomLeftVal > bottomRightVal) {
+        multiBottomAngle++;
+    } else {
+        multiBottomAngle--;
+    }
+
+    if (topRightVal > bottomRightVal || topLeftVal > bottomLeftVal) {
+        multiTopAngle++;
+    } else {
+        multiTopAngle--;
+    }
+
+
+    if (singleLeftVal > singleRightVal) {
+        singleBottomAngle++;
+    } else {
+        singleBottomAngle--;
+    }
+
+    if (singleTopVal > singleBottomVal) {
+        singleTopAngle++;
+    } else {
+        singleTopAngle--;
+    }
+
+    multiBottom.write(multiBottomAngle);
+    multiTop.write(multiTopAngle);
+    singleBottom.write(singleBottomAngle);
+    singleTop.write(singleTopAngle);
+}
+
 void setup() {
     Serial.begin(115200);
 
@@ -23,21 +90,24 @@ void setup() {
     statLED.ClearTo(RgbColor(255, 255, 0));
     statLED.Show();
 
-    I2C.begin(8, 9);
+    ADC_I2C.begin(I2C_DATA_PIN, I2C_CLOCK_PIN);
 
     ads1.setGain(GAIN_SIXTEEN);
-    ads1.begin(0x48, &I2C);
+    ads1.begin(0x48, &ADC_I2C);
 
     ads2.setGain(GAIN_SIXTEEN);
-    ads2.begin(0x49, &I2C);
+    ads2.begin(0x49, &ADC_I2C);
 
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
     ESP32PWM::allocateTimer(3);
 
-    multiBottom.attach(41, 500, 2500);
-    multiTop.attach(42, 500, 2500);
+    multiBottom.attach(TWO_AXIS_LOWER_SERVO, 500, 2500);
+    multiTop.attach(TWO_AXIS_TOP_SERVO, 500, 2500);
+
+    singleBottom.attach(ONE_AXIS_LOWER_SERVO, 500, 2500);
+    singleTop.attach(ONE_AXIS_TOP_SERVO, 500, 2500);
 }
 
 void loop() {
