@@ -44,7 +44,7 @@ bool SDLogger::openLogFile(String name) {
     if (!fileOpen) {
         logFile = sd->open(name, FILE_WRITE);
         if (!logFile) {
-            Serial.println("Failed to open file for writing");
+            Serial.println("Misslyckades med att öppna fil");
             return false;
         }
 
