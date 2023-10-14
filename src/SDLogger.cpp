@@ -18,25 +18,25 @@ SDLogger::SDLogger(fs::SDFS* sd) {
 
 void SDLogger::setupSD(uint8_t cs_pin, SPIClass spiInterface) { // Från ett exempel i bibloteket (https://github.com/espressif/arduino-esp32/blob/master/libraries/SD/examples/SD_Test/SD_Test.ino)
     if(!sd->begin(cs_pin, spiInterface)){
-        Serial.println("Kortet kunde inte monteras");
+        Serial0.println("Kortet kunde inte monteras");
         return;
     }
     uint8_t cardType = sd->cardType();
 
     if(cardType == CARD_NONE){
-        Serial.println("Hittade inget SD-kort");
+        Serial0.println("Hittade inget SD-kort");
         return;
     }
 
-    Serial.print("SD-korttyp: ");
+    Serial0.print("SD-korttyp: ");
     if(cardType == CARD_MMC){
-        Serial.println("MMC");
+        Serial0.println("MMC");
     } else if(cardType == CARD_SD){
-        Serial.println("SDSC");
+        Serial0.println("SDSC");
     } else if(cardType == CARD_SDHC){
-        Serial.println("SDHC");
+        Serial0.println("SDHC");
     } else {
-        Serial.println("Okänd");
+        Serial0.println("Okänd");
     }
 }
 
@@ -44,7 +44,7 @@ bool SDLogger::openLogFile(String name) {
     if (!fileOpen) {
         logFile = sd->open(name, FILE_WRITE);
         if (!logFile) {
-            Serial.println("Misslyckades med att öppna fil");
+            Serial0.println("Misslyckades med att öppna fil");
             return false;
         }
 
