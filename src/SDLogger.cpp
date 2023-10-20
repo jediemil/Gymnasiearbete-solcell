@@ -56,6 +56,7 @@ bool SDLogger::openLogFile(String name) {
 
 bool SDLogger::writeBufToFile(float buf[][6], unsigned long* timeBuf, uint32_t len) {
     unsigned int success = 1;
+    noInterrupts();
     for (int i; i < len; i++) {
         success *= logFile.print(timeBuf[i]);
         for (int j; j < 6; j++) {
@@ -66,6 +67,7 @@ bool SDLogger::writeBufToFile(float buf[][6], unsigned long* timeBuf, uint32_t l
     }
 
     logFile.flush();
+    interrupts();
 
     if (success) {
         return true;

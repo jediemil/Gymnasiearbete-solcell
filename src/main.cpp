@@ -32,6 +32,7 @@
 #define ARGB_LED_PIN 38
 
 #define BUF_SIZE 256
+#define SERVO_DELAY_MS 50
 
 //#define DEFAULT_TIMER_WIDTH 8
 
@@ -50,6 +51,9 @@ Servo singleTop;
 SDLogger sdLogger(&SD);
 
 NeoPixelBus<NeoRgbFeature, NeoEsp32BitBangWs2812Method> statLED(1, ARGB_LED_PIN);
+
+TaskHandle_t logTaskHandle;
+TaskHandle_t servoTaskHandle;
 
 float measurementBuf[BUF_SIZE][6];
 unsigned long timestampsBuf[BUF_SIZE];
@@ -122,7 +126,7 @@ void stepServos() {
     singleTop.write(singleTopAngle);
 }
 
-void measurementLoop() {
+bool measurementLoop() {
     for (int i = 0; i < BUF_SIZE; i++) {
         measurementBuf[i][0] = ads1.readADC_SingleEnded(0);
         measurementBuf[i][1] = ads1.readADC_SingleEnded(1);
@@ -135,9 +139,28 @@ void measurementLoop() {
         timestampsBuf[i] = millis();
         delay(1000);
     }
-    if (!sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE)) {
-        statLED.ClearTo(RgbColor(255, 0, 0));
-        statLED.Show();
+    bool success = sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE);
+    return success;
+}
+
+void logTask(void * args) {
+    Serial0.println("Mättask startad");
+    while (true) {
+        bool success = measurementLoop();
+        if (!success) {
+            statLED.ClearTo(RgbColor(255, 0, 0));
+            statLED.Show();
+            break;
+        }
+    }
+    Serial0.println("Kunde inte skriva till SD-kort. Log avbruten.");
+}
+
+[[noreturn]] void servoTask(void * args) {
+    Serial0.println("Servotask startad");
+    while (true) {
+        stepServos();
+        delay(SERVO_DELAY_MS);
     }
 }
 
@@ -200,6 +223,26 @@ void setup() {
     multiBottom.write(90);
     singleBottom.write(90);
     singleTop.write(90);
+
+    xTaskCreatePinnedToCore(
+            servoTask,   /* Task function. */
+            "ServoTask",     /* name of task. */
+            10000,       /* Stack size of task */
+            NULL,        /* parameter of the task */
+            10,           /* priority of the task */
+            &servoTaskHandle,      /* Task handle to keep track of created task */
+            0);          /* pin task to core 0 */
+
+    xTaskCreatePinnedToCore(
+            logTask,   /* Task function. */
+            "LogTAsk",     /* name of task. */
+            10000,       /* Stack size of task */
+            NULL,        /* parameter of the task */
+            10,           /* priority of the task */
+            &logTaskHandle,      /* Task handle to keep track of created task */
+            1);          /* pin task to core 0 */
+
+    Serial0.println("Startad");
 }
 
 void loop() {
@@ -226,6 +269,5 @@ void loop() {
     float volts0 = ads1.computeVolts(adc1_0); //adc0 / (float) 0x8000 * 0.256;
     Serial0.print("Variable_1:");
     Serial0.println(volts0*2000);*/
-    stepServos();
-    delay((10));
+    delay(1000);
 }
