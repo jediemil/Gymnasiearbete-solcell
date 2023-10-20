@@ -33,6 +33,7 @@
 
 #define BUF_SIZE 256
 #define SERVO_DELAY_MS 50
+#define LOG_RATE_MS 1000
 
 //#define DEFAULT_TIMER_WIDTH 8
 
@@ -137,7 +138,7 @@ bool measurementLoop() {
         measurementBuf[i][5] = ads2.readADC_SingleEnded(1);
 
         timestampsBuf[i] = millis();
-        delay(1000);
+        delay(LOG_RATE_MS);
     }
     bool success = sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE);
     return success;
