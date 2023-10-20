@@ -1,7 +1,7 @@
 #include "Wire.h"
 #include "Arduino.h"
 #include <Adafruit_ADS1X15.h>
-#include "../.pio/libdeps/esp32s3box/ESP32Servo/src/ESP32Servo.h"
+#include "../.pio/libdeps/esp32s3box/ServoESP32/src/Servo.h"
 #include "../.pio/libdeps/esp32s3box/NeoPixelBus/src/NeoPixelBus.h"
 #include "SDLogger.h"
 
@@ -29,6 +29,8 @@
 #define SD_CS 10
 #define SD_CLOCK 12
 
+#define ARGB_LED_PIN 38
+
 #define BUF_SIZE 256
 
 //#define DEFAULT_TIMER_WIDTH 8
@@ -47,7 +49,7 @@ Servo singleTop;
 
 SDLogger sdLogger(&SD);
 
-NeoPixelBus<NeoRgbFeature, NeoEsp32BitBangWs2812Method> statLED(1, 38);
+NeoPixelBus<NeoRgbFeature, NeoEsp32BitBangWs2812Method> statLED(1, ARGB_LED_PIN);
 
 float measurementBuf[BUF_SIZE][6];
 unsigned long timestampsBuf[BUF_SIZE];
@@ -172,10 +174,10 @@ void setup() {
     Serial0.println("ADC igångsatt");
     delay(100);
 
-    multiBottom.getPwm()->pwmChannel = 0;
+    /*multiBottom.getPwm()->pwmChannel = 0;
     multiTop.getPwm()->pwmChannel = 1;
     singleTop.getPwm()->pwmChannel = 2;
-    singleBottom.getPwm()->pwmChannel = 3;
+    singleBottom.getPwm()->pwmChannel = 3;*/
     /*ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
@@ -184,11 +186,11 @@ void setup() {
     Serial0.println("Timer allokerad");
     delay(100);
 
-    multiBottom.attach(TWO_AXIS_LOWER_SERVO, 500, 2500);
-    multiTop.attach(TWO_AXIS_TOP_SERVO, 500, 2500);
+    multiBottom.attach(TWO_AXIS_LOWER_SERVO, 0, 0, 180, 500, 2500);
+    multiTop.attach(TWO_AXIS_TOP_SERVO, 1, 0, 180, 500, 2500);
 
-    singleBottom.attach(ONE_AXIS_LOWER_SERVO, 500, 2500);
-    singleTop.attach(ONE_AXIS_TOP_SERVO, 500, 2500);
+    singleBottom.attach(ONE_AXIS_LOWER_SERVO, 2, 0, 180, 500, 2500);
+    singleTop.attach(ONE_AXIS_TOP_SERVO, 3, 0, 180, 500, 2500);
 
     Serial0.println("Servo igång");
     delay(100);
