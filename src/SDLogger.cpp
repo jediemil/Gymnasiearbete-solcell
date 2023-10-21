@@ -76,7 +76,7 @@ bool SDLogger::openLogFile() {
 bool SDLogger::writeBufToFile(int16_t buf[BUF_SIZE][6], unsigned long timeBuf[BUF_SIZE], uint32_t len) {
     bool success = true;
     //noInterrupts();
-    for (int i = 0; i < BUF_SIZE; i++) {
+    for (int i = 0; i < len; i++) {
         //Serial0.println(timeBuf[i]);
         //Serial0.println(uxTaskGetStackHighWaterMark(NULL));
         success &= logFile.print(timeBuf[i]) > 0;

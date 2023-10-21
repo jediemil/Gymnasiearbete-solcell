@@ -172,6 +172,20 @@ bool measurementLoop() {
 
         timestampsBuf[i] = millis();
         delay(LOG_RATE_MS);
+
+        int e;
+        delay(100);
+        xQueueReceive(queue, &e, 10);
+        Serial0.println(e);
+        if (e == 1) {
+            Serial0.println("Avslutar log");
+            sdLogger.writeBufToFile(measurementBuf, timestampsBuf, i);
+            sdLogger.closeLogFile();
+            statLED.ClearTo(RgbColor(0, 255, 0));
+            statLED.Show();
+            delay(100);
+            vTaskDelete(NULL);
+        }
     }
     bool success = sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE);
     return success;
@@ -186,19 +200,6 @@ void logTask(void * args) {
         bool success = measurementLoop();
         if (!success) {
             break;
-        }
-        int e;
-        Serial0.println("A");
-        delay(100);
-        xQueueReceive(queue, &e, 10);
-        Serial0.println(e);
-        if (e == 1) {
-            Serial0.println("Avslutar log");
-            sdLogger.closeLogFile();
-            statLED.ClearTo(RgbColor(0, 255, 0));
-            statLED.Show();
-            delay(100);
-            vTaskDelete(NULL);
         }
     }
 
@@ -228,6 +229,12 @@ void stopIrq() {
     int i = 1;
     xQueueSend(queue, &i, portMAX_DELAY);
     vTaskDelete(servoTaskHandle);
+
+    /*delay(100);
+    multiTop.write(90);
+    multiBottom.write(90);
+    singleBottom.write(90);
+    singleTop.write(90);*/
 }
 
 void setup() {
