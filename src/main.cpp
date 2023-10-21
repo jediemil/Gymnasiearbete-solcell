@@ -36,7 +36,7 @@
 #define ARGB_LED_PIN 38
 #define STOP_BUTTON_PIN 0
 
-#define SERVO_DELAY_MS 50
+#define SERVO_DELAY_MS 100
 #define LOG_RATE_MS 1000
 #define TRACKER_DEAD_SPACE 400
 
@@ -100,15 +100,15 @@ void stepServos(int trackerDeadSpace) {
 
     if (tLvtR > trackerDeadSpace || blvtR > trackerDeadSpace) {
         if (multiTopAngle > 90) {
-            multiBottomAngle = max(20, multiBottomAngle - 1);
+            multiBottomAngle = max(0, multiBottomAngle - 1);
         } else {
-            multiBottomAngle = min(160, multiBottomAngle + 1);
+            multiBottomAngle = min(180, multiBottomAngle + 1);
         }
     } else if (tLvtR < -trackerDeadSpace || blvtR < -trackerDeadSpace) {
         if (multiTopAngle > 90) {
-            multiBottomAngle = min(160, multiBottomAngle + 1);
+            multiBottomAngle = min(180, multiBottomAngle + 1);
         } else {
-            multiBottomAngle = max(20, multiBottomAngle - 1);
+            multiBottomAngle = max(0, multiBottomAngle - 1);
         }
 
     }
@@ -126,9 +126,9 @@ void stepServos(int trackerDeadSpace) {
     int sTvsB = singleTopVal - singleBottomVal;
 
     if (sLvsR > trackerDeadSpace) {
-        singleBottomAngle = max(20, singleBottomAngle - 1);
+        singleBottomAngle = max(0, singleBottomAngle - 1);
     } else if (sLvsR < -trackerDeadSpace) {
-        singleBottomAngle = min(160, singleBottomAngle + 1);
+        singleBottomAngle = min(180, singleBottomAngle + 1);
     }
 
     if (sTvsB > trackerDeadSpace) {
@@ -212,12 +212,13 @@ void logTask(void * args) {
 
 void servoTask(void * args) {
     Serial0.println("Servotask startad");
-    int i = 0;
+    //int i = 0;
     while (true) {
-        stepServos(min(i * TRACKER_DEAD_SPACE, TRACKER_DEAD_SPACE));
+        //stepServos(min(i * TRACKER_DEAD_SPACE, TRACKER_DEAD_SPACE));
+        stepServos(0);
         delay(SERVO_DELAY_MS);
-        i++;
-        i %= 10;
+        //i++;
+        //i %= 10;
     }
 }
 
