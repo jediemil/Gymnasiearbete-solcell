@@ -16,8 +16,8 @@ SDLogger::SDLogger(fs::SDFS* sd) {
     this->sd = sd;
 }
 
-void SDLogger::setupSD(uint8_t cs_pin, SPIClass spiInterface) { // Från ett exempel i bibloteket (https://github.com/espressif/arduino-esp32/blob/master/libraries/SD/examples/SD_Test/SD_Test.ino)
-    if(!sd->begin(cs_pin, spiInterface)){
+void SDLogger::setupSD(uint8_t cs_pin) { // Från ett exempel i bibloteket (https://github.com/espressif/arduino-esp32/blob/master/libraries/SD/examples/SD_Test/SD_Test.ino)
+    if(!sd->begin(cs_pin)){
         Serial0.println("Kortet kunde inte monteras");
         return;
     }
@@ -40,9 +40,28 @@ void SDLogger::setupSD(uint8_t cs_pin, SPIClass spiInterface) { // Från ett exe
     }
 }
 
-bool SDLogger::openLogFile(String name) {
+bool SDLogger::openLogFile() {
     if (!fileOpen) {
-        logFile = sd->open(name, FILE_WRITE);
+        int numFiles = 0;
+        //SD.mkdir("/tests");
+        File testRoot = SD.open("/tests");
+        while (true) {
+            File entry = testRoot.openNextFile();
+            if (!entry) {
+                // no more files
+                break;
+            }
+            numFiles++;
+            entry.close();
+        }
+        testRoot.close();
+
+        Serial0.print("Filer på SD-kort: ");
+        Serial0.println(numFiles);
+
+        delay(100);
+        String numFilesStr = String(numFiles + 1);
+        logFile = SD.open("/tests/test" + numFilesStr + ".txt", FILE_WRITE);
         if (!logFile) {
             Serial0.println("Misslyckades med att öppna fil");
             return false;
@@ -54,20 +73,24 @@ bool SDLogger::openLogFile(String name) {
     return false;
 }
 
-bool SDLogger::writeBufToFile(float buf[][6], unsigned long* timeBuf, uint32_t len) {
-    unsigned int success = 1;
-    noInterrupts();
-    for (int i; i < len; i++) {
-        success *= logFile.print(timeBuf[i]);
-        for (int j; j < 6; j++) {
-            success *= logFile.print(buf[i][j]);
-            success *= logFile.print(" ");
+bool SDLogger::writeBufToFile(int16_t buf[BUF_SIZE][6], unsigned long timeBuf[BUF_SIZE], uint32_t len) {
+    bool success = true;
+    //noInterrupts();
+    for (int i = 0; i < BUF_SIZE; i++) {
+        //Serial0.println(timeBuf[i]);
+        //Serial0.println(uxTaskGetStackHighWaterMark(NULL));
+        success &= logFile.print(timeBuf[i]) > 0;
+        //Serial0.println(success);
+        for (int j = 0; j < 6; j++) {
+            success &= logFile.print(" ") > 0;
+            success &= logFile.print(buf[i][j]) > 0;
         }
-        success *= logFile.println(" ");
+        success &= logFile.println("") > 0;
     }
 
     logFile.flush();
-    interrupts();
+    Serial0.println("Flushad");
+    //interrupts();
 
     if (success) {
         return true;

@@ -4,6 +4,10 @@
 #include "../.pio/libdeps/esp32s3box/ServoESP32/src/Servo.h"
 #include "../.pio/libdeps/esp32s3box/NeoPixelBus/src/NeoPixelBus.h"
 #include "SDLogger.h"
+#include <FreeRTOS.h>
+#include <FS.h>
+#include <SD.h>
+#include <SPI.h>
 
 #define I2C_CLOCK_PIN 48
 #define I2C_DATA_PIN 47
@@ -18,11 +22,11 @@
 #define ONE_AXIS_LEFT_PHOTORESISTOR 4
 #define ONE_AXIS_RIGHT_PHOTORESISTOR 5
 
-#define TWO_AXIS_LOWER_SERVO 36
-#define TWO_AXIS_TOP_SERVO 35
+#define TWO_AXIS_LOWER_SERVO 16
+#define TWO_AXIS_TOP_SERVO 17
 
 #define ONE_AXIS_LOWER_SERVO 39
-#define ONE_AXIS_TOP_SERVO 37
+#define ONE_AXIS_TOP_SERVO 15
 
 #define SD_MISO 11
 #define SD_MOSI 13
@@ -30,14 +34,15 @@
 #define SD_CLOCK 12
 
 #define ARGB_LED_PIN 38
+#define STOP_BUTTON_PIN 0
 
-#define BUF_SIZE 256
 #define SERVO_DELAY_MS 50
 #define LOG_RATE_MS 1000
+#define TRACKER_DEAD_SPACE 400
 
 //#define DEFAULT_TIMER_WIDTH 8
 
-SPIClass sdSPI;
+//SPIClass sdSPI;
 
 Adafruit_ADS1115 ads1;
 Adafruit_ADS1115 ads2;
@@ -51,12 +56,15 @@ Servo singleTop;
 
 SDLogger sdLogger(&SD);
 
-NeoPixelBus<NeoRgbFeature, NeoEsp32BitBangWs2812Method> statLED(1, ARGB_LED_PIN);
+NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod> statLED(1, ARGB_LED_PIN);
 
 TaskHandle_t logTaskHandle;
 TaskHandle_t servoTaskHandle;
 
-float measurementBuf[BUF_SIZE][6];
+QueueHandle_t queue;
+int queueSize = 2;
+
+int16_t measurementBuf[BUF_SIZE][6];
 unsigned long timestampsBuf[BUF_SIZE];
 
 int multiTopAngle = 90;
@@ -64,7 +72,7 @@ int multiBottomAngle = 90;
 int singleTopAngle = 90;
 int singleBottomAngle = 90;
 
-void stepServos() {
+void stepServos(int trackerDeadSpace) {
     uint16_t topLeftVal = analogRead(TWO_AXIS_TOP_LEFT_PHOTORESISTOR);
     uint16_t topRightVal = analogRead(TWO_AXIS_TOP_RIGHT_PHOTORESISTOR);
     uint16_t bottomLeftVal = analogRead(TWO_AXIS_BOTTOM_LEFT_PHOTORESISTOR);
@@ -72,10 +80,10 @@ void stepServos() {
     //int multiTopAngle = multiTop.read();
     //int multiBottomAngle = multiBottom.read();
 
-    Serial0.println(multiBottomAngle);
+    /*Serial0.println(multiBottomAngle);
     Serial0.println(topLeftVal);
     Serial0.println(topLeftVal > topRightVal || bottomLeftVal > bottomRightVal);
-    Serial0.println(topRightVal > bottomRightVal || topLeftVal > bottomLeftVal);
+    Serial0.println(topRightVal > bottomRightVal || topLeftVal > bottomLeftVal);*/
 
 
     uint16_t singleLeftVal = analogRead(ONE_AXIS_LEFT_PHOTORESISTOR);
@@ -85,46 +93,71 @@ void stepServos() {
 
     //int singleTopAngle = singleTop.read();
     //int singleBottomAngle = singleBottom.read();
+    int tLvtR = topLeftVal - topRightVal;
+    int blvtR = bottomLeftVal - bottomRightVal;
+    //Serial0.println(tLvtR);
+    //Serial0.println(blvtR);
 
-    if (topLeftVal > topRightVal || bottomLeftVal > bottomRightVal) {
+    if (tLvtR > trackerDeadSpace || blvtR > trackerDeadSpace) {
         if (multiTopAngle > 90) {
-            multiBottomAngle = max(0, multiBottomAngle - 1);
+            multiBottomAngle = max(20, multiBottomAngle - 1);
         } else {
-            multiBottomAngle = min(180, multiBottomAngle + 1);
+            multiBottomAngle = min(160, multiBottomAngle + 1);
         }
-    } else {
+    } else if (tLvtR < -trackerDeadSpace || blvtR < -trackerDeadSpace) {
         if (multiTopAngle > 90) {
-            multiBottomAngle = min(180, multiBottomAngle + 1);
+            multiBottomAngle = min(160, multiBottomAngle + 1);
         } else {
-            multiBottomAngle = max(0, multiBottomAngle - 1);
+            multiBottomAngle = max(20, multiBottomAngle - 1);
         }
 
     }
 
-    if (topRightVal > bottomRightVal || topLeftVal > bottomLeftVal) {
-        multiTopAngle = max(0, multiTopAngle - 1);
-    } else {
-        multiTopAngle = min(180, multiTopAngle + 1);
+    int tRvbR = topRightVal - bottomRightVal;
+    int tLvbL = topLeftVal - bottomLeftVal;
+
+    if (tRvbR > trackerDeadSpace || tLvbL > trackerDeadSpace) {
+        multiTopAngle = max(20, multiTopAngle - 1);
+    } else if (tRvbR < -trackerDeadSpace || tLvbL < -trackerDeadSpace) {
+        multiTopAngle = min(160, multiTopAngle + 1);
     }
 
+    int sLvsR = singleLeftVal - singleRightVal;
+    int sTvsB = singleTopVal - singleBottomVal;
 
-    if (singleLeftVal > singleRightVal) {
-        singleBottomAngle = min(180, singleBottomAngle + 1);
-    } else {
-        singleBottomAngle = max(0, singleBottomAngle - 1);
+    if (sLvsR > trackerDeadSpace) {
+        singleBottomAngle = max(20, singleBottomAngle - 1);
+    } else if (sLvsR < -trackerDeadSpace) {
+        singleBottomAngle = min(160, singleBottomAngle + 1);
     }
 
-    if (singleTopVal > singleBottomVal) {
-        singleTopAngle = min(180, singleTopAngle + 1);
-    } else {
-        singleTopAngle = max(0, singleTopAngle - 1);
+    if (sTvsB > trackerDeadSpace) {
+        singleTopAngle = min(160, singleTopAngle + 1);
+    } else if (sTvsB < -trackerDeadSpace){
+        singleTopAngle = max(20, singleTopAngle - 1);
     }
 
     multiBottom.write(multiBottomAngle);
-    Serial0.println(singleTopVal);
+    //Serial0.println(singleTopVal);
     multiTop.write(multiTopAngle);
     singleBottom.write(singleBottomAngle);
     singleTop.write(singleTopAngle);
+    /*for (int i = 0; i < 180; i++) {
+        multiBottom.write(i);
+        delay(100);
+    }
+    for (int i = 0; i < 180; i++) {
+        multiTop.write(i);
+        delay(100);
+    }
+    for (int i = 0; i < 180; i++) {
+        singleBottom.write(i);
+        delay(100);
+    }
+    for (int i = 0; i < 180; i++) {
+        singleTop.write(i);
+        delay(100);
+    }*/
 }
 
 bool measurementLoop() {
@@ -146,23 +179,54 @@ bool measurementLoop() {
 
 void logTask(void * args) {
     Serial0.println("Mättask startad");
+    statLED.ClearTo(RgbColor(0, 0, 255));
+    statLED.Show();
     while (true) {
+        Serial0.println("B");
         bool success = measurementLoop();
         if (!success) {
-            statLED.ClearTo(RgbColor(255, 0, 0));
-            statLED.Show();
             break;
         }
+        int e;
+        Serial0.println("A");
+        delay(100);
+        xQueueReceive(queue, &e, 10);
+        Serial0.println(e);
+        if (e == 1) {
+            Serial0.println("Avslutar log");
+            sdLogger.closeLogFile();
+            statLED.ClearTo(RgbColor(0, 255, 0));
+            statLED.Show();
+            delay(100);
+            vTaskDelete(NULL);
+        }
     }
+
+    statLED.ClearTo(RgbColor(255, 0, 0));
+    statLED.Show();
     Serial0.println("Kunde inte skriva till SD-kort. Log avbruten.");
+    sdLogger.closeLogFile();
+    delay(100);
+    vTaskDelete(NULL);
 }
 
-[[noreturn]] void servoTask(void * args) {
+void servoTask(void * args) {
     Serial0.println("Servotask startad");
+    int i = 0;
     while (true) {
-        stepServos();
+        stepServos(min(i * TRACKER_DEAD_SPACE, TRACKER_DEAD_SPACE));
         delay(SERVO_DELAY_MS);
+        i++;
+        i %= 10;
     }
+}
+
+void stopIrq() {
+    Serial0.println("Stänger av loggning");
+    Serial0.println("Skickar meddelande");
+    int i = 1;
+    xQueueSend(queue, &i, portMAX_DELAY);
+    vTaskDelete(servoTaskHandle);
 }
 
 void setup() {
@@ -171,15 +235,26 @@ void setup() {
     delay(100);
 
     statLED.Begin();
-    statLED.ClearTo(RgbColor(255, 255, 0));
+    statLED.ClearTo(RgbColor(255, 70, 0));
     statLED.Show();
 
     Serial0.println("LED startad");
     delay(100);
 
-    sdSPI.begin(SD_CLOCK, SD_MISO, SD_MOSI, SD_CS);
-    sdLogger.setupSD(SD_CS, sdSPI);
-    sdLogger.openLogFile("test.txt");
+    pinMode(STOP_BUTTON_PIN, INPUT);
+    attachInterrupt(STOP_BUTTON_PIN, stopIrq, FALLING);
+
+    Serial0.println("Interrupt registrerad");
+    delay(100);
+    SPI.begin(SD_CLOCK, SD_MISO, SD_MOSI, SD_CS);
+    //pinMode(SD_CS, OUTPUT);
+    //digitalWrite(SD_CS, HIGH);
+    sdLogger.setupSD(SD_CS);
+    if (!sdLogger.openLogFile()) {
+        statLED.ClearTo(RgbColor(255, 0, 0));
+        statLED.Show();
+        for (;;) {}
+    }
 
     Serial0.println("SPI och SD startad");
     delay(100);
@@ -210,11 +285,14 @@ void setup() {
     Serial0.println("Timer allokerad");
     delay(100);
 
-    multiBottom.attach(TWO_AXIS_LOWER_SERVO, 0, 0, 180, 500, 2500);
-    multiTop.attach(TWO_AXIS_TOP_SERVO, 1, 0, 180, 500, 2500);
+    /*ledcSetup(0, 50, 14); // channel X, 50 Hz, 16-bit depth
+    ledcAttachPin(ONE_AXIS_TOP_SERVO, 0);
+    ledcWrite(0, 2<<9);*/
+    multiBottom.attach(TWO_AXIS_LOWER_SERVO, 0);
+    multiTop.attach(TWO_AXIS_TOP_SERVO, 1);
 
-    singleBottom.attach(ONE_AXIS_LOWER_SERVO, 2, 0, 180, 500, 2500);
-    singleTop.attach(ONE_AXIS_TOP_SERVO, 3, 0, 180, 500, 2500);
+    singleBottom.attach(ONE_AXIS_LOWER_SERVO, 2);
+    singleTop.attach(ONE_AXIS_TOP_SERVO, 3);
 
     Serial0.println("Servo igång");
     delay(100);
@@ -225,28 +303,21 @@ void setup() {
     singleBottom.write(90);
     singleTop.write(90);
 
-    xTaskCreatePinnedToCore(
-            servoTask,   /* Task function. */
-            "ServoTask",     /* name of task. */
-            10000,       /* Stack size of task */
-            NULL,        /* parameter of the task */
-            10,           /* priority of the task */
-            &servoTaskHandle,      /* Task handle to keep track of created task */
-            0);          /* pin task to core 0 */
+    queue = xQueueCreate( queueSize, sizeof( int ) );
 
-    xTaskCreatePinnedToCore(
-            logTask,   /* Task function. */
-            "LogTAsk",     /* name of task. */
-            10000,       /* Stack size of task */
-            NULL,        /* parameter of the task */
-            10,           /* priority of the task */
-            &logTaskHandle,      /* Task handle to keep track of created task */
-            1);          /* pin task to core 0 */
+    if(queue == NULL){
+        Serial.println("Error creating the queue");
+    }
+
+    xTaskCreatePinnedToCore(servoTask, "ServoTask", 10000, NULL, 10, &servoTaskHandle, 0);
+
+    xTaskCreatePinnedToCore(logTask, "LogTask", 100000, NULL, 10, &logTaskHandle, 1);
 
     Serial0.println("Startad");
 }
 
 void loop() {
+    //sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE);
     /*for (int pos = 0; pos <= 180; pos += 1) {
         multiBottom.write(pos);
         multiTop.write(180 - pos);
