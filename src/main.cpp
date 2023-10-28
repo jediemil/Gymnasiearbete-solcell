@@ -72,6 +72,8 @@ int multiBottomAngle = 90;
 int singleTopAngle = 90;
 int singleBottomAngle = 90;
 
+//float factor = 1;
+
 void stepServos(int trackerDeadSpace) {
     uint16_t topLeftVal = analogRead(TWO_AXIS_TOP_LEFT_PHOTORESISTOR);
     uint16_t topRightVal = analogRead(TWO_AXIS_TOP_RIGHT_PHOTORESISTOR);
@@ -86,10 +88,11 @@ void stepServos(int trackerDeadSpace) {
     Serial0.println(topRightVal > bottomRightVal || topLeftVal > bottomLeftVal);*/
 
 
-    uint16_t singleLeftVal = analogRead(ONE_AXIS_LEFT_PHOTORESISTOR);
+    uint16_t singleLeftVal = analogRead(ONE_AXIS_LEFT_PHOTORESISTOR) * 1.1f;
     uint16_t singleRightVal = analogRead(ONE_AXIS_RIGHT_PHOTORESISTOR);
     uint16_t singleTopVal = analogRead(ONE_AXIS_TOP_PHOTORESISTOR);
     uint16_t singleBottomVal = analogRead(ONE_AXIS_BOTTOM_PHOTORESISTOR);
+    //Serial0.println(factor);
 
     //int singleTopAngle = singleTop.read();
     //int singleBottomAngle = singleBottom.read();
@@ -229,6 +232,8 @@ void stopIrq() {
     int i = 1;
     xQueueSend(queue, &i, portMAX_DELAY);
     vTaskDelete(servoTaskHandle);
+
+    //factor += 0.1;
 
     /*delay(100);
     multiTop.write(90);
