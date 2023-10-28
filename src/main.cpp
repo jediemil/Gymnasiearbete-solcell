@@ -88,7 +88,7 @@ void stepServos(int trackerDeadSpace) {
     Serial0.println(topRightVal > bottomRightVal || topLeftVal > bottomLeftVal);*/
 
 
-    uint16_t singleLeftVal = analogRead(ONE_AXIS_LEFT_PHOTORESISTOR) * 1.1f;
+    uint16_t singleLeftVal = analogRead(ONE_AXIS_LEFT_PHOTORESISTOR) * 1.1f; // Kallibrering
     uint16_t singleRightVal = analogRead(ONE_AXIS_RIGHT_PHOTORESISTOR);
     uint16_t singleTopVal = analogRead(ONE_AXIS_TOP_PHOTORESISTOR);
     uint16_t singleBottomVal = analogRead(ONE_AXIS_BOTTOM_PHOTORESISTOR);
