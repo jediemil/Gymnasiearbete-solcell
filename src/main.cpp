@@ -9,6 +9,8 @@
 #include <SD.h>
 #include <SPI.h>
 
+// Defines:
+
 #define I2C_CLOCK_PIN 48
 #define I2C_DATA_PIN 47
 
@@ -45,7 +47,7 @@
 //SPIClass sdSPI;
 
 Adafruit_ADS1115 ads1;
-Adafruit_ADS1115 ads2;
+Adafruit_ADS1115 ads2; // Creates the ADC objects, one for each ADC
 TwoWire ADC_I2C = TwoWire(0);
 
 Servo multiBottom;
@@ -54,18 +56,18 @@ Servo multiTop;
 Servo singleBottom;
 Servo singleTop;
 
-SDLogger sdLogger(&SD);
+//SDLogger sdLogger(&SD);
 
-NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod> statLED(1, ARGB_LED_PIN);
+NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod> statLED(1, ARGB_LED_PIN); // Initiate status LED
 
 TaskHandle_t logTaskHandle;
-TaskHandle_t servoTaskHandle;
+TaskHandle_t servoTaskHandle; // Task handles for the extra threads in the program
 
-QueueHandle_t queue;
+QueueHandle_t queue; // Queue for communication between threads
 int queueSize = 2;
 
-int16_t measurementBuf[BUF_SIZE][6];
-unsigned long timestampsBuf[BUF_SIZE];
+int16_t measurementBuf[BUF_SIZE][6]; // Buffer for data points. The program only writes to the SD card once this is full
+unsigned long timestampsBuf[BUF_SIZE]; // Buffer for timestamps
 
 int multiTopAngle = 90;
 int multiBottomAngle = 90;
@@ -101,7 +103,7 @@ void stepServos(int trackerDeadSpace) {
     //Serial0.println(tLvtR);
     //Serial0.println(blvtR);
 
-    if (tLvtR > trackerDeadSpace || blvtR > trackerDeadSpace) {
+    if (tLvtR > trackerDeadSpace || blvtR > trackerDeadSpace) { // This can be done
         if (multiTopAngle > 90) {
             multiBottomAngle = max(0, multiBottomAngle - 1);
         } else {
@@ -165,7 +167,25 @@ void stepServos(int trackerDeadSpace) {
 
 bool measurementLoop() {
     for (int i = 0; i < BUF_SIZE; i++) {
-        measurementBuf[i][0] = ads1.readADC_SingleEnded(0);
+        Serial.print("Variable_1:");
+        Serial.print(ads1.readADC_SingleEnded(0));
+        Serial.print(",");
+        Serial.print("Variable_2:");
+        Serial.print(ads1.readADC_SingleEnded(1));
+        Serial.print(",");
+        Serial.print("Variable_3:");
+        Serial.print(ads1.readADC_SingleEnded(2));
+        Serial.print(",");
+        Serial.print("Variable_4:");
+        Serial.print(ads1.readADC_SingleEnded(3));
+        Serial.print(",");
+        Serial.print("Variable_5:");
+        Serial.print(ads2.readADC_SingleEnded(0));
+        Serial.print(",");
+        Serial.print("Variable_6:");
+        Serial.println(ads2.readADC_SingleEnded(1));
+        delay(10);
+        /*measurementBuf[i][0] = ads1.readADC_SingleEnded(0);
         measurementBuf[i][1] = ads1.readADC_SingleEnded(1);
         measurementBuf[i][2] = ads1.readADC_SingleEnded(2);
         measurementBuf[i][3] = ads1.readADC_SingleEnded(3);
@@ -188,10 +208,11 @@ bool measurementLoop() {
             statLED.Show();
             delay(100);
             vTaskDelete(NULL);
-        }
+        }*/
     }
-    bool success = sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE);
-    return success;
+    //bool success = sdLogger.writeBufToFile(measurementBuf, timestampsBuf, BUF_SIZE);
+    return true;
+    //return success;
 }
 
 void logTask(void * args) {
@@ -209,7 +230,7 @@ void logTask(void * args) {
     statLED.ClearTo(RgbColor(255, 0, 0));
     statLED.Show();
     Serial0.println("Kunde inte skriva till SD-kort. Log avbruten.");
-    sdLogger.closeLogFile();
+    //sdLogger.closeLogFile();
     delay(100);
     vTaskDelete(NULL);
 }
@@ -244,7 +265,9 @@ void stopIrq() {
 
 void setup() {
     Serial0.begin(115200);
+    Serial.begin(115200);
     Serial0.println("Boot");
+
     delay(100);
 
     statLED.Begin();
@@ -259,15 +282,15 @@ void setup() {
 
     Serial0.println("Interrupt registrerad");
     delay(100);
-    SPI.begin(SD_CLOCK, SD_MISO, SD_MOSI, SD_CS);
+    //SPI.begin(SD_CLOCK, SD_MISO, SD_MOSI, SD_CS);
     //pinMode(SD_CS, OUTPUT);
     //digitalWrite(SD_CS, HIGH);
-    sdLogger.setupSD(SD_CS);
+    /*sdLogger.setupSD(SD_CS);
     if (!sdLogger.openLogFile()) {
         statLED.ClearTo(RgbColor(255, 0, 0));
         statLED.Show();
         for (;;) {}
-    }
+    }*/
 
     Serial0.println("SPI och SD startad");
     delay(100);
